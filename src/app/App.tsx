@@ -11,6 +11,7 @@ import {
   Building2, UserCheck,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AuthAPI, setAuthToken } from "../lib/api";
 
 /* ════════════════════════════════ TYPES ════════════════════════════════════ */
 type Phase = "splash"|"onboarding"|"auth_choice"|"login"|"account_type"|"register"|"otp"|"app";
@@ -451,16 +452,22 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
 
-  const doLogin=()=>{
-    const u=USERS.find(u=>u.email===email.trim());
-    if(!u||pwd!=="123456"){setErr("Email ou mot de passe incorrect.");return;}
+  const doLogin=async()=>{
+    if(!email.trim()||!pwd){setErr("Merci de renseigner votre email et votre mot de passe.");return;}
     setErr("");setLoading(true);
-    setTimeout(()=>{setLoading(false);onLogin(u);},800);
+    try{
+      const {token,user}=await AuthAPI.login(email.trim(),pwd);
+      setAuthToken(token);
+      setLoading(false);
+      onLogin({id:user.id,name:user.name,email:user.email,role:user.role,storeId:user.storeId,telephone:user.telephone,accountType:user.accountType});
+    }catch(e:any){
+      setLoading(false);
+      setErr(e?.message||"Email ou mot de passe incorrect.");
+    }
   };
 
   const socialLogin=(provider:string)=>{
-    setLoading(true);
-    setTimeout(()=>{setLoading(false);onLogin(USERS[0]);},1000);
+    setErr("La connexion via "+provider+" n'est pas encore disponible. Utilisez votre email et mot de passe.");
   };
 
   const demoAccounts=[
@@ -537,10 +544,10 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
 
         {/* Demo accounts */}
         <div className="mt-5">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Comptes démo (mot de passe : 123456)</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Comptes démo (mot de passe : password123)</p>
           <div className="grid grid-cols-2 gap-2">
             {demoAccounts.map(d=>(
-              <button key={d.email} onClick={()=>{setEmail(d.email);setPwd("123456");setErr("");}}
+              <button key={d.email} onClick={()=>{setEmail(d.email);setPwd("password123");setErr("");}}
                 className={`${d.cls} rounded-xl py-2.5 text-xs font-bold text-center active:scale-95 transition-transform`}>
                 {d.label}
               </button>
@@ -605,11 +612,11 @@ function AccountTypeScreen({onSelect,onBack}:{onSelect:(t:AccountType)=>void;onB
   );
 }
 
-function RegisterScreen({accountType,onSubmit,onBack}:{accountType:AccountType;onSubmit:(phone:string,name:string)=>void;onBack:()=>void}){
+function RegisterScreen({accountType,onSubmit,onBack,initialError}:{accountType:AccountType;onSubmit:(data:{name:string;phone:string;email:string;pwd:string})=>void;onBack:()=>void;initialError?:string}){
   const [form,setForm]=useState({name:"",phone:"+236 ",email:"",pwd:"",confirmPwd:""});
   const [showPwd,setShowPwd]=useState(false);
   const [storeName,setStoreName]=useState("");
-  const [err,setErr]=useState("");
+  const [err,setErr]=useState(initialError||"");
   const isMerchant=accountType==="merchant_pro";
   const isDriver=accountType==="driver_pro";
   const title=isMerchant?"Compte Commerçant Pro":isDriver?"Compte Livreur Pro":"Compte Personnel";
@@ -618,9 +625,13 @@ function RegisterScreen({accountType,onSubmit,onBack}:{accountType:AccountType;o
   const submit=()=>{
     if(!form.name||!form.phone||!form.email||!form.pwd){setErr("Veuillez remplir tous les champs obligatoires.");return;}
     if(form.pwd!==form.confirmPwd){setErr("Les mots de passe ne correspondent pas.");return;}
-    if(form.pwd.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");return;}
+    if(form.pwd.length<8){setErr("Le mot de passe doit contenir au moins 8 caractères.");return;}
+    if(!/[a-z]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins une minuscule.");return;}
+    if(!/[A-Z]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins une majuscule.");return;}
+    if(!/[0-9]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins un chiffre.");return;}
+    if(!/[^A-Za-z0-9]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins un caractère spécial (ex: ! ? # @ _ -).");return;}
     setErr("");
-    onSubmit(form.phone,form.name);
+    onSubmit({name:form.name,phone:form.phone,email:form.email,pwd:form.pwd});
   };
 
   const field=(label:string,key:keyof typeof form,opts?:{type?:string;placeholder?:string;icon?:React.ReactNode})=>(
@@ -697,12 +708,13 @@ function RegisterScreen({accountType,onSubmit,onBack}:{accountType:AccountType;o
           <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 block">Mot de passe *</label>
           <div className="relative">
             <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input type={showPwd?"text":"password"} value={form.pwd} onChange={e=>setForm(p=>({...p,pwd:e.target.value}))} placeholder="6 caractères minimum"
+            <input type={showPwd?"text":"password"} value={form.pwd} onChange={e=>setForm(p=>({...p,pwd:e.target.value}))} placeholder="8 caractères min., Aa1!"
               className="w-full bg-muted rounded-xl pl-10 pr-12 py-3.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"/>
             <button onClick={()=>setShowPwd(v=>!v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground">
               {showPwd?<EyeOff size={16}/>:<Eye size={16}/>}
             </button>
           </div>
+          <p className="text-[11px] text-muted-foreground mt-1">Au moins 8 caractères, avec une majuscule, une minuscule, un chiffre et un caractère spécial.</p>
         </div>
         {field("Confirmer le mot de passe *","confirmPwd",{type:showPwd?"text":"password",placeholder:"Répétez le mot de passe",icon:<Lock size={15}/>})}
 
@@ -2195,17 +2207,26 @@ export default function App(){
   const [accountType,setAccountType]=useState<AccountType>("personal");
   const [regPhone,setRegPhone]=useState("+236 ");
   const [regName,setRegName]=useState("");
+  const [regEmail,setRegEmail]=useState("");
+  const [regPwd,setRegPwd]=useState("");
+  const [regError,setRegError]=useState("");
   const [orders,setOrders]=useState<Order[]>(SEED_ORDERS);
   const [notifs,setNotifs]=useState<Notif[]>(SEED_NOTIFS);
   const [products,setProducts]=useState<Product[]>(INIT_PRODUCTS);
 
   const login=(u:AppUser)=>{setUser(u);setPhase("app");};
-  const logout=()=>{setUser(null);setPhase("auth_choice");};
+  const logout=()=>{setAuthToken(null);setUser(null);setPhase("auth_choice");};
 
-  const handleOTPVerified=()=>{
-    const role:UserRole=accountType==="personal"?"client":accountType==="merchant_pro"?"merchant":"driver";
-    const newUser:AppUser={id:`u_${Date.now()}`,name:regName||"Nouveau Compte",email:`${regPhone.replace(/\s/g,"")}@banguidirect.com`,role,telephone:regPhone,accountType};
-    login(newUser);
+  const handleOTPVerified=async()=>{
+    setRegError("");
+    try{
+      const {token,user}=await AuthAPI.register({name:regName,email:regEmail,password:regPwd,telephone:regPhone,accountType});
+      setAuthToken(token);
+      login({id:user.id,name:user.name,email:user.email,role:user.role,storeId:user.storeId,telephone:user.telephone,accountType:user.accountType});
+    }catch(e:any){
+      setRegError(e?.message||"Impossible de créer le compte. Réessayez.");
+      setPhase("register");
+    }
   };
 
   return(
@@ -2216,7 +2237,7 @@ export default function App(){
         {phase==="auth_choice"  && <AuthChoiceScreen onLogin={()=>setPhase("login")} onRegister={()=>setPhase("account_type")}/>}
         {phase==="login"        && <LoginScreen onLogin={login} onBack={()=>setPhase("auth_choice")} onRegister={()=>setPhase("account_type")}/>}
         {phase==="account_type" && <AccountTypeScreen onSelect={t=>{setAccountType(t);setPhase("register");}} onBack={()=>setPhase("auth_choice")}/>}
-        {phase==="register"     && <RegisterScreen accountType={accountType} onSubmit={(phone,name)=>{setRegPhone(phone);setRegName(name);setPhase("otp");}} onBack={()=>setPhase("account_type")}/>}
+        {phase==="register"     && <RegisterScreen accountType={accountType} initialError={regError} onSubmit={(d)=>{setRegPhone(d.phone);setRegName(d.name);setRegEmail(d.email);setRegPwd(d.pwd);setPhase("otp");}} onBack={()=>setPhase("account_type")}/>}
         {phase==="otp"          && <OTPScreen phone={regPhone} onVerify={handleOTPVerified} onBack={()=>setPhase("register")}/>}
         {phase==="app"&&user&&(
           <>
