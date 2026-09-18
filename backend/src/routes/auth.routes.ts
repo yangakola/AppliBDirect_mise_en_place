@@ -27,6 +27,15 @@ function publicUser(u: UserRow) {
   };
 }
 
+function isPasswordStrong(pwd: string): string | null {
+  if (pwd.length < 8) return "Le mot de passe doit contenir au moins 8 caractères.";
+  if (!/[a-z]/.test(pwd)) return "Le mot de passe doit contenir au moins une minuscule.";
+  if (!/[A-Z]/.test(pwd)) return "Le mot de passe doit contenir au moins une majuscule.";
+  if (!/[0-9]/.test(pwd)) return "Le mot de passe doit contenir au moins un chiffre.";
+  if (!/[^A-Za-z0-9]/.test(pwd)) return "Le mot de passe doit contenir au moins un caractère spécial (ex: ! ? # @ _ -).";
+  return null;
+}
+
 // POST /api/auth/register
 router.post("/register", (req, res) => {
   const { name, email, password, telephone, accountType } = req.body as {
@@ -40,8 +49,9 @@ router.post("/register", (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ error: "name, email et password sont requis." });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères." });
+  const passwordError = isPasswordStrong(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
