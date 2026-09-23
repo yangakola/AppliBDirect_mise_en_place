@@ -8,7 +8,7 @@ import {
   Navigation, Camera, Truck, PlusCircle, ArrowRight,
   Shield, Pencil, BarChart2, DollarSign, Activity,
   ToggleLeft, ToggleRight, Eye, EyeOff, Lock, Mail,
-  Building2, UserCheck,
+  Building2, UserCheck, ChevronDown,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { AuthAPI, setAuthToken } from "../lib/api";
@@ -613,7 +613,18 @@ function AccountTypeScreen({onSelect,onBack}:{onSelect:(t:AccountType)=>void;onB
 }
 
 function RegisterScreen({accountType,onSubmit,onBack,initialError}:{accountType:AccountType;onSubmit:(data:{name:string;phone:string;email:string;pwd:string})=>void;onBack:()=>void;initialError?:string}){
-  const [form,setForm]=useState({name:"",phone:"+236 ",email:"",pwd:"",confirmPwd:""});
+  const COUNTRIES=[
+    {code:"+236",flag:"🇨🇫",name:"Centrafrique"},
+    {code:"+235",flag:"🇹🇩",name:"Tchad"},
+    {code:"+237",flag:"🇨🇲",name:"Cameroun"},
+    {code:"+242",flag:"🇨🇬",name:"Congo-Brazzaville"},
+    {code:"+243",flag:"🇨🇩",name:"RD Congo"},
+    {code:"+241",flag:"🇬🇦",name:"Gabon"},
+    {code:"+33", flag:"🇫🇷",name:"France"},
+  ];
+  const [country,setCountry]=useState(COUNTRIES[0]);
+  const [showCountryPicker,setShowCountryPicker]=useState(false);
+  const [form,setForm]=useState({name:"",phone:"",email:"",pwd:"",confirmPwd:""});
   const [showPwd,setShowPwd]=useState(false);
   const [storeName,setStoreName]=useState("");
   const [err,setErr]=useState(initialError||"");
@@ -631,7 +642,7 @@ function RegisterScreen({accountType,onSubmit,onBack,initialError}:{accountType:
     if(!/[0-9]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins un chiffre.");return;}
     if(!/[^A-Za-z0-9]/.test(form.pwd)){setErr("Le mot de passe doit contenir au moins un caractère spécial (ex: ! ? # @ _ -).");return;}
     setErr("");
-    onSubmit({name:form.name,phone:form.phone,email:form.email,pwd:form.pwd});
+    onSubmit({name:form.name,phone:country.code+" "+form.phone,email:form.email,pwd:form.pwd});
   };
 
   const field=(label:string,key:keyof typeof form,opts?:{type?:string;placeholder?:string;icon?:React.ReactNode})=>(
@@ -684,13 +695,25 @@ function RegisterScreen({accountType,onSubmit,onBack,initialError}:{accountType:
         {field("Nom complet *","name",{placeholder:"Jean-Baptiste Maïna",icon:<User size={15}/>})}
         <div>
           <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 block">Téléphone *</label>
-          <div className="flex gap-2">
-            <div className="bg-muted rounded-xl px-3 py-3.5 flex items-center gap-1.5 flex-shrink-0">
-              <span className="text-sm">🇨🇫</span>
-              <span className="text-sm font-semibold">+236</span>
-            </div>
-            <input value={form.phone.replace("+236 ","")} onChange={e=>setForm(p=>({...p,phone:"+236 "+e.target.value}))}
+          <div className="flex gap-2 relative">
+            <button type="button" onClick={()=>setShowCountryPicker(v=>!v)}
+              className="bg-muted rounded-xl px-3 py-3.5 flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-sm">{country.flag}</span>
+              <span className="text-sm font-semibold">{country.code}</span>
+              <ChevronDown size={13}/>
+            </button>
+            <input value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))}
               placeholder="72 01 23 45" className="flex-1 bg-muted rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"/>
+            {showCountryPicker&&(
+              <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-xl shadow-lg z-20 w-56 overflow-hidden">
+                {COUNTRIES.map(c=>(
+                  <button key={c.code} type="button" onClick={()=>{setCountry(c);setShowCountryPicker(false);}}
+                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm hover:bg-muted text-left">
+                    <span>{c.flag}</span><span className="flex-1">{c.name}</span><span className="text-muted-foreground">{c.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {field("Email *","email",{type:"email",placeholder:"vous@email.com",icon:<Mail size={15}/>})}
