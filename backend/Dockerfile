@@ -24,4 +24,4 @@ ENV DATABASE_FILE=/data/data.db
 VOLUME ["/data"]
 
 EXPOSE 4000
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "node dist/seed.js && node dist/server.js"]
