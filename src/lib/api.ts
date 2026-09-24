@@ -42,6 +42,7 @@ export const AuthAPI = {
   login: (email: string, password: string) =>
     request<{ token: string; user: any }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => request<{ user: any }>("/auth/me"),
+  google: (idToken: string) => request<{ token: string; user: any }>("/auth/google", { method: "POST", body: JSON.stringify({ idToken }) }),
   requestOtp: (telephone: string) =>
     request<{ message: string; devCode?: string }>("/auth/otp/request", { method: "POST", body: JSON.stringify({ telephone }) }),
   verifyOtp: (telephone: string, code: string) =>
