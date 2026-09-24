@@ -127,4 +127,40 @@ router.post("/otp/verify", (req, res) => {
   return res.json({ verified: true });
 });
 
+// POST /api/auth/google — connexion/inscription via Google Identity Services
+router.post("/google", async (req, res) => {
+  const { idToken } = req.body as { idToken?: string };
+  if (!idToken) return res.status(400).json({ error: "idToken est requis." });
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) return res.status(500).json({ error: "Connexion Google non configurée côté serveur." });
+
+  try {
+    // On délègue la vérification de signature/expiration à Google elle-même via son
+    // endpoint tokeninfo, pour éviter une dépendance supplémentaire côté serveur.
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!verifyRes.ok) return res.status(401).json({ error: "Jeton Google invalide." });
+    const payload = (await verifyRes.json()) as { aud?: string; email?: string; email_verified?: string; name?: string; sub?: string };
+
+    if (payload.aud !== clientId) return res.status(401).json({ error: "Jeton Google destiné à une autre application." });
+    if (payload.email_verified !== "true" || !payload.email) return res.status(401).json({ error: "Email Google non vérifié." });
+
+    let user = db.prepare("SELECT * FROM users WHERE email = ?").get(payload.email) as UserRow | undefined;
+
+    if (!user) {
+      const id = uuid();
+      const randomPasswordHash = bcrypt.hashSync(uuid() + uuid(), 10); // jamais utilisé pour se connecter, juste pour respecter le schéma
+      db.prepare(
+        `INSERT INTO users (id, name, email, password_hash, role, account_type) VALUES (?, ?, ?, ?, 'client', 'personal')`
+      ).run(id, payload.name || payload.email.split("@")[0], payload.email, randomPasswordHash);
+      user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow;
+    }
+
+    const token = signToken({ id: user.id, role: user.role, storeId: user.store_id });
+    return res.json({ token, user: publicUser(user) });
+  } catch {
+    return res.status(500).json({ error: "Impossible de vérifier le jeton Google." });
+  }
+});
+
 export default router;
