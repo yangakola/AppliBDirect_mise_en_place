@@ -466,6 +466,37 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
     }
   };
 
+  const handleGoogleCredential=async(response:any)=>{
+    setErr("");setLoading(true);
+    try{
+      const {token,user}=await AuthAPI.google(response.credential);
+      setAuthToken(token);
+      setLoading(false);
+      onLogin({id:user.id,name:user.name,email:user.email,role:user.role,storeId:user.storeId,telephone:user.telephone,accountType:user.accountType});
+    }catch(e:any){
+      setLoading(false);
+      setErr(e?.message||"Connexion Google impossible.");
+    }
+  };
+
+  useEffect(()=>{
+    const clientId=(import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+    if(!clientId) return;
+    let interval:any;
+    const init=()=>{
+      const w=window as any;
+      if(w.google?.accounts?.id){
+        w.google.accounts.id.initialize({client_id:clientId,callback:handleGoogleCredential});
+        const el=document.getElementById("google-signin-btn");
+        if(el){el.innerHTML="";w.google.accounts.id.renderButton(el,{theme:"outline",size:"large",width:320,text:"continue_with"});}
+        clearInterval(interval);
+      }
+    };
+    interval=setInterval(init,200);
+    init();
+    return ()=>clearInterval(interval);
+  },[]);
+
   const socialLogin=(provider:string)=>{
     setErr("La connexion via "+provider+" n'est pas encore disponible. Utilisez votre email et mot de passe.");
   };
@@ -491,8 +522,8 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
       <div className="flex-1 overflow-y-auto px-5 py-5 scrollbar-hide">
         {/* Social login */}
         <div className="space-y-2.5 mb-5">
+          <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]"/>
           {[
-            {icon:<GoogleIcon/>,   label:"Continuer avec Google",   bg:"bg-white border border-gray-200",  text:"text-foreground"},
             {icon:<AppleIcon/>,    label:"Continuer avec Apple",    bg:"bg-black",                          text:"text-white"},
             {icon:<FacebookIcon/>, label:"Continuer avec Facebook", bg:"bg-[#1877F2]",                      text:"text-white"},
           ].map(s=>(
