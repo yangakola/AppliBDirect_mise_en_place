@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { v4 as uuid } from "uuid";
+import crypto from "crypto";
 import { db } from "../db";
 import { signToken } from "../utils/jwt";
 import { requireAuth } from "../middleware/auth";
@@ -35,6 +36,62 @@ function isPasswordStrong(pwd: string): string | null {
   if (!/[^A-Za-z0-9]/.test(pwd)) return "Le mot de passe doit contenir au moins un caractère spécial (ex: ! ? # @ _ -).";
   return null;
 }
+
+
+// ─── Installation : création du PREMIER administrateur ──────────────────────
+// Possible uniquement tant qu'aucun admin n'existe. En production, protégé par SETUP_CODE
+// (code secret défini dans les variables d'environnement) pour qu'un inconnu ne puisse pas
+// prendre le contrôle de l'app en arrivant le premier sur l'URL.
+const adminExists = () => !!db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+let setupFailures: number[] = [];
+
+router.get("/setup-status", (_req, res) => {
+  const needsSetup = !adminExists();
+  const requiresCode = process.env.NODE_ENV === "production";
+  const enabled = needsSetup && (!requiresCode || !!process.env.SETUP_CODE);
+  return res.json({ needsSetup: enabled, requiresCode });
+});
+
+router.post("/setup-admin", (req, res) => {
+  const { setupCode, name, email, password, telephone } = req.body as {
+    setupCode?: string; name?: string; email?: string; password?: string; telephone?: string;
+  };
+
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  setupFailures = setupFailures.filter((t) => t > oneHourAgo);
+  if (setupFailures.length >= 10) {
+    return res.status(429).json({ error: "Trop de tentatives. Réessayez plus tard." });
+  }
+  if (adminExists()) return res.status(409).json({ error: "Un administrateur existe déjà." });
+
+  if (process.env.NODE_ENV === "production") {
+    const expected = process.env.SETUP_CODE;
+    if (!expected) return res.status(403).json({ error: "Installation désactivée (SETUP_CODE non défini)." });
+    const a = Buffer.from(String(setupCode ?? ""));
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      setupFailures.push(Date.now());
+      return res.status(403).json({ error: "Code d'installation incorrect." });
+    }
+  }
+
+  if (!name || !email || !password) return res.status(400).json({ error: "name, email et password sont requis." });
+  const passwordError = isPasswordStrong(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
+
+  const id = uuid();
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    db.prepare(
+      "INSERT INTO users (id, name, email, password_hash, role, telephone) VALUES (?, ?, ?, ?, 'admin', ?)"
+    ).run(id, name.trim(), cleanEmail, bcrypt.hashSync(password, 10), telephone ?? null);
+  } catch {
+    return res.status(409).json({ error: "Un compte existe déjà avec cet email." });
+  }
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow;
+  const token = signToken({ id: user.id, role: user.role, storeId: null });
+  return res.status(201).json({ token, user: publicUser(user) });
+});
 
 // POST /api/auth/register
 router.post("/register", (req, res) => {
@@ -112,6 +169,10 @@ router.post("/otp/request", (req, res) => {
   otpStore.set(telephone, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
 
   // TODO production: envoyer `code` par SMS via un fournisseur, et retirer devCode de la réponse.
+  if (process.env.NODE_ENV === "production") {
+    // Aucun fournisseur SMS branché : on refuse plutôt que de fausser la vérification.
+    return res.status(501).json({ error: "Vérification par SMS non disponible pour le moment." });
+  }
   return res.json({ message: "Code envoyé.", devCode: code });
 });
 

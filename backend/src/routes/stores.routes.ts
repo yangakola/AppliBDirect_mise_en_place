@@ -1,3 +1,4 @@
+import { signToken } from "../utils/jwt";
 import { Router } from "express";
 import { v4 as uuid } from "uuid";
 import { db } from "../db";
@@ -88,7 +89,8 @@ router.post("/", requireAuth, requireRole("merchant", "admin"), (req, res) => {
   db.prepare("UPDATE users SET store_id = ? WHERE id = ?").run(id, req.user!.id);
 
   const store = db.prepare("SELECT * FROM stores WHERE id = ?").get(id) as StoreRow;
-  return res.status(201).json({ store: publicStore(store) });
+  const token = signToken({ id: req.user!.id, role: req.user!.role, storeId: id });
+  return res.status(201).json({ store: publicStore(store), token });
 });
 
 function assertOwnStoreOrAdmin(req: import("express").Request, storeId: string) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import {
   Search, Home, ShoppingCart, ClipboardList, Heart, User,
   ChevronLeft, Plus, Minus, X, MapPin, Phone, CheckCircle,
@@ -11,10 +11,10 @@ import {
   Building2, UserCheck, ChevronDown,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { AuthAPI, setAuthToken } from "../lib/api";
+import { AuthAPI, StoresAPI, ProductsAPI, OrdersAPI, NotificationsAPI, AdminAPI, setAuthToken, getAuthToken } from "../lib/api";
 
 /* ════════════════════════════════ TYPES ════════════════════════════════════ */
-type Phase = "splash"|"onboarding"|"auth_choice"|"login"|"account_type"|"register"|"otp"|"app";
+type Phase = "splash"|"wait"|"setup"|"onboarding"|"auth_choice"|"login"|"account_type"|"register"|"otp"|"app";
 type UserRole = "client"|"merchant"|"driver"|"admin";
 type AccountType = "personal"|"merchant_pro"|"driver_pro";
 type StoreType = "restaurant"|"pharmacie"|"marche"|"boutique"|"express";
@@ -50,70 +50,118 @@ const FMT = (n:number) => n.toLocaleString("fr-FR")+" FCFA";
 const PH = (id:string,w=800,h=500) => `https://images.unsplash.com/${id}?w=${w}&h=${h}&fit=crop&auto=format`;
 const DF = "'Bricolage Grotesque',sans-serif";
 
-/* ══════════════════════════ MOCK DATA ══════════════════════════════════════ */
-const USERS:AppUser[] = [
-  {id:"u1",name:"Jean-Baptiste Maïna",   email:"client@test.com",   role:"client",   telephone:"+236 72 01 23 45",accountType:"personal"},
-  {id:"u2",name:"Cécile Ngakoutou",      email:"merchant@test.com",  role:"merchant", storeId:"s1",telephone:"+236 75 98 76 54",accountType:"merchant_pro"},
-  {id:"u3",name:"Rodrigue Mbaitoloum",   email:"driver@test.com",    role:"driver",   telephone:"+236 70 34 56 78",accountType:"driver_pro"},
-  {id:"u4",name:"Parfait Sanga-Ndombi",  email:"admin@test.com",     role:"admin",    telephone:"+236 77 00 11 22"},
-  {id:"u5",name:"Aristide Koyakouno",    email:"merchant2@test.com", role:"merchant", storeId:"s2",telephone:"+236 72 45 67 89",accountType:"merchant_pro"},
-];
-const STORES:Store[] = [
-  {id:"s1",name:"Maman Cécile",type:"restaurant",category:"Cuisine Centrafricaine",tags:["Traditionnel","Fait maison","Populaire"],rating:4.9,ratingCount:342,deliveryTime:"25–40 min",deliveryFee:500,coverImage:PH("photo-1664992960082-0ea299a9c53e"),description:"Les meilleures spécialités de Bangui préparées avec amour depuis 2010.",quartier:"Lakouanga",isOpen:true,openHours:"07h–21h",merchantId:"u2",address:"Quartier Lakouanga, Rue 12.050"},
-  {id:"s2",name:"Chez Aristide",type:"restaurant",category:"Grillades & Brochettes",tags:["Brochettes","Poisson","Bœuf"],rating:4.7,ratingCount:218,deliveryTime:"20–30 min",deliveryFee:400,coverImage:PH("photo-1599487488170-d11ec9c172f0"),description:"Brochettes grillées au charbon de bois, poissons du fleuve Oubangui.",quartier:"Boy-Rabé",isOpen:true,openHours:"11h–23h",merchantId:"u5",address:"Boy-Rabé, Avenue de l'Indépendance"},
-  {id:"s3",name:"Pizza Bangui",type:"restaurant",category:"Pizzas & Fast Food",tags:["Pizza","Burgers","Rapide"],rating:4.5,ratingCount:156,deliveryTime:"30–45 min",deliveryFee:600,coverImage:PH("photo-1589148753554-b4bd9db83fa2"),description:"Pizzas artisanales et burgers généreux livrés chauds chez vous.",quartier:"Fatima",isOpen:true,openHours:"10h–22h30",merchantId:"u6",address:"Fatima, Rue des Artisans"},
-  {id:"s4",name:"Pharmacie Santé+",type:"pharmacie",category:"Pharmacie",tags:["Médicaments","Urgences","7j/7"],rating:4.8,ratingCount:89,deliveryTime:"20–35 min",deliveryFee:400,coverImage:PH("photo-1631549916768-4119b2e5f926"),description:"Médicaments et parapharmacie livrés rapidement en toute discrétion.",quartier:"Miskine",isOpen:true,openHours:"06h–22h",merchantId:"u7",address:"Miskine, Centre Commercial"},
-  {id:"s5",name:"Marché KM5",type:"marche",category:"Marché",tags:["Légumes","Fruits","Épices","Frais"],rating:4.6,ratingCount:203,deliveryTime:"25–40 min",deliveryFee:300,coverImage:PH("photo-1734255026082-82fdc81991f0"),description:"Légumes frais, fruits locaux et épices du marché KM5 livrés chez vous.",quartier:"Kilomètre 5",isOpen:true,openHours:"06h–19h",merchantId:"u8",address:"Kilomètre 5, Marché Central"},
-  {id:"s6",name:"Wax & Style",type:"boutique",category:"Mode & Accessoires",tags:["Wax","Vêtements","Accessoires"],rating:4.4,ratingCount:67,deliveryTime:"30–50 min",deliveryFee:500,coverImage:PH("photo-1552710307-537199cd41c0"),description:"Tissus wax de qualité, vêtements et accessoires africains tendance.",quartier:"Galabadja",isOpen:true,openHours:"09h–20h",merchantId:"u9",address:"Galabadja, Marché des Artisans"},
-  {id:"s7",name:"Fraîcheur Tropicale",type:"express",category:"Jus & Snacks",tags:["Jus naturels","Beignets","Express"],rating:4.6,ratingCount:134,deliveryTime:"10–20 min",deliveryFee:250,coverImage:PH("photo-1603569283847-aa295f0d016a"),description:"Jus pressés et beignets chauds. Livraison express garantie en 15 min !",quartier:"Gobongo",isOpen:false,openHours:"07h–18h",merchantId:"u10",address:"Gobongo, Rue du Marché"},
-];
-const INIT_PRODUCTS:Product[] = [
-  {id:"p1",storeId:"s1",name:"Gozo et Sauce Feuilles",price:1500,description:"Pâte de manioc avec sauce aux feuilles et poisson fumé",image:PH("photo-1664992960082-0ea299a9c53e",400,300),available:true,category:"Plats principaux",stock:20},
-  {id:"p2",storeId:"s1",name:"Kanda en Sauce Arachide",price:2000,description:"Boulettes de viande hachée en sauce arachide avec riz blanc",image:PH("photo-1664992960082-0ea299a9c53e",400,300),available:true,category:"Plats principaux",stock:15},
-  {id:"p3",storeId:"s1",name:"Poulet DG",price:3500,description:"Poulet sauté aux légumes et plantains frits, spécialité de la maison",image:PH("photo-1687422808277-2334638f09fb",400,300),available:true,category:"Plats principaux",stock:8},
-  {id:"p4",storeId:"s1",name:"Sanga Sanga",price:1200,description:"Feuilles de patate douce à l'huile de palme et crevettes séchées",image:PH("photo-1664992960082-0ea299a9c53e",400,300),available:true,category:"Plats principaux",stock:12},
-  {id:"p5",storeId:"s1",name:"Fufu Banane",price:800,description:"Banane pilée — accompagnement idéal pour toutes les sauces",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Accompagnements",stock:25},
-  {id:"p6",storeId:"s1",name:"Jus de Bissap",price:500,description:"Jus d'hibiscus frais légèrement sucré, servi bien frais",image:PH("photo-1614707585284-9cb9fc018387",400,300),available:true,category:"Boissons",stock:30},
-  {id:"p7",storeId:"s1",name:"Eau Minérale 50cl",price:300,description:"Bouteille d'eau fraîche",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Boissons",stock:50},
-  {id:"p8",storeId:"s2",name:"Brochettes Bœuf (6 pcs)",price:1800,description:"Brochettes marinées grillées au charbon, sauce piment maison",image:PH("photo-1599487488170-d11ec9c172f0",400,300),available:true,category:"Brochettes",stock:20},
-  {id:"p9",storeId:"s2",name:"Brochettes Porc (6 pcs)",price:1500,description:"Brochettes de porc tendres et savoureuses",image:PH("photo-1605908580297-f3e1c02e64ff",400,300),available:true,category:"Brochettes",stock:15},
-  {id:"p10",storeId:"s2",name:"Poisson Braisé Entier",price:3000,description:"Poisson du fleuve braisé avec alloco et sauce tomate maison",image:PH("photo-1599487488170-d11ec9c172f0",400,300),available:true,category:"Poissons",stock:6},
-  {id:"p11",storeId:"s2",name:"Poulet Grillé ½",price:2500,description:"Demi-poulet mariné aux épices locales grillé au charbon",image:PH("photo-1687422808277-2334638f09fb",400,300),available:true,category:"Viandes",stock:10},
-  {id:"p12",storeId:"s2",name:"Alloco (Plantain Frit)",price:600,description:"Banane plantain mûre frite dorée",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Accompagnements",stock:30},
-  {id:"p13",storeId:"s3",name:"Pizza Margherita",price:4500,description:"Sauce tomate maison, mozzarella, basilic frais",image:PH("photo-1589148753554-b4bd9db83fa2",400,300),available:true,category:"Pizzas",stock:15},
-  {id:"p14",storeId:"s3",name:"Pizza Tropicale",price:5000,description:"Jambon, ananas, fromage, sauce barbecue",image:PH("photo-1589148753554-b4bd9db83fa2",400,300),available:true,category:"Pizzas",stock:12},
-  {id:"p15",storeId:"s3",name:"Burger Bangui",price:3500,description:"Steak haché, cheddar, tomate, salade, sauce maison",image:PH("photo-1664992960082-0ea299a9c53e",400,300),available:true,category:"Burgers",stock:20},
-  {id:"p16",storeId:"s3",name:"Frites Maison",price:1000,description:"Frites dorées croustillantes, sauce mayo ou ketchup",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Accompagnements",stock:25},
-  {id:"p17",storeId:"s4",name:"Paracétamol 500mg (×10)",price:500,description:"Antidouleur et antipyrétique — boîte de 10 comprimés",image:PH("photo-1631549916768-4119b2e5f926",400,300),available:true,category:"Antidouleurs",stock:50,unit:"boîte"},
-  {id:"p18",storeId:"s4",name:"Amoxicilline 500mg (×12)",price:1800,description:"Antibiotique à large spectre — boîte de 12 gélules",image:PH("photo-1631549916768-4119b2e5f926",400,300),available:true,category:"Antibiotiques",stock:30,unit:"boîte"},
-  {id:"p19",storeId:"s4",name:"Ibuprofène 400mg (×10)",price:700,description:"Anti-inflammatoire — boîte de 10 comprimés",image:PH("photo-1631549916768-4119b2e5f926",400,300),available:true,category:"Antidouleurs",stock:40,unit:"boîte"},
-  {id:"p20",storeId:"s4",name:"Masques Chirurgicaux (×10)",price:1000,description:"Masques de protection certifiés",image:PH("photo-1631549916768-4119b2e5f926",400,300),available:true,category:"Protection",stock:60,unit:"paquet"},
-  {id:"p21",storeId:"s5",name:"Tomates fraîches (1 kg)",price:400,description:"Tomates locales mûres et juteuses",image:PH("photo-1734255026082-82fdc81991f0",400,300),available:true,category:"Légumes",stock:100,unit:"kg"},
-  {id:"p22",storeId:"s5",name:"Oignons (1 kg)",price:350,description:"Oignons violets de qualité supérieure",image:PH("photo-1687422809617-a7d97879b3b0",400,300),available:true,category:"Légumes",stock:80,unit:"kg"},
-  {id:"p23",storeId:"s5",name:"Bananes Plantain (régime)",price:800,description:"Régime de 8 bananes plantain mûres",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Fruits",stock:20,unit:"régime"},
-  {id:"p24",storeId:"s5",name:"Gombo frais (500 g)",price:300,description:"Gombo tendre idéal pour les sauces",image:PH("photo-1734255026082-82fdc81991f0",400,300),available:true,category:"Légumes",stock:50,unit:"500g"},
-  {id:"p25",storeId:"s5",name:"Piment rouge (250 g)",price:200,description:"Piment frais de Bangui très parfumé",image:PH("photo-1734255026082-82fdc81991f0",400,300),available:true,category:"Épices",stock:60,unit:"250g"},
-  {id:"p26",storeId:"s6",name:"Tissu Wax Floral (6 yards)",price:8500,description:"Tissu wax imprimé floral 100% coton premium",image:PH("photo-1552710307-537199cd41c0",400,300),available:true,category:"Tissus",stock:15,unit:"6 yards"},
-  {id:"p27",storeId:"s6",name:"Tissu Wax Géométrique",price:7500,description:"Motifs géométriques modernes, couleurs vives",image:PH("photo-1578509566163-068acd11b8e7",400,300),available:true,category:"Tissus",stock:12,unit:"6 yards"},
-  {id:"p28",storeId:"s6",name:"Sac Raphia Artisanal",price:3500,description:"Sac à main tressé à la main, résistant et élégant",image:PH("photo-1552710307-537199cd41c0",400,300),available:true,category:"Accessoires",stock:8},
-  {id:"p29",storeId:"s7",name:"Jus Gingembre-Citron",price:700,description:"Tonifiant et revigorant, pressé à la commande",image:PH("photo-1621506289937-a8e4df240d0b",400,300),available:true,category:"Jus",stock:20},
-  {id:"p30",storeId:"s7",name:"Jus de Mangue (50cl)",price:600,description:"Mangue fraîche mixée, sans sucre ajouté",image:PH("photo-1614707585284-9cb9fc018387",400,300),available:true,category:"Jus",stock:25},
-  {id:"p31",storeId:"s7",name:"Beignets Haricots (10 pcs)",price:500,description:"Croustillants et chauds, sauce piment douce",image:PH("photo-1664992960082-0ea299a9c53e",400,300),available:true,category:"Snacks",stock:15},
-  {id:"p32",storeId:"s7",name:"Beignets Banane (5 pcs)",price:400,description:"Beignets de banane dorés, sucrés et moelleux",image:PH("photo-1603569283847-aa295f0d016a",400,300),available:true,category:"Snacks",stock:18},
-];
-const now = new Date();
-const ago = (m:number) => new Date(now.getTime()-m*60000);
-const SEED_ORDERS:Order[] = [
-  {id:"CMD-001",storeId:"s1",storeName:"Maman Cécile",storeType:"restaurant",clientId:"u1",clientName:"Jean-Baptiste Maïna",driverId:"u3",driverName:"Rodrigue Mbaitoloum",items:[{product:INIT_PRODUCTS[0],qty:2},{product:INIT_PRODUCTS[5],qty:1}],status:"livrée",subtotal:3500,deliveryFee:500,total:4000,paymentMethod:"orange_money",delivery:{nom:"Jean-Baptiste Maïna",quartier:"Boy-Rabé",adresse:"Rue 14.120",repere:"En face de l'église",telephone:"+236 72 01 23 45"},createdAt:ago(2*24*60)},
-  {id:"CMD-002",storeId:"s2",storeName:"Chez Aristide",storeType:"restaurant",clientId:"u1",clientName:"Jean-Baptiste Maïna",items:[{product:INIT_PRODUCTS[7],qty:2},{product:INIT_PRODUCTS[11],qty:1}],status:"préparation",subtotal:4200,deliveryFee:400,total:4600,paymentMethod:"cash",delivery:{nom:"Jean-Baptiste Maïna",quartier:"Boy-Rabé",adresse:"Rue 14.120",repere:"En face de l'église",telephone:"+236 72 01 23 45"},createdAt:ago(30)},
-  {id:"CMD-003",storeId:"s1",storeName:"Maman Cécile",storeType:"restaurant",clientId:"u5",clientName:"Aristide Koyakouno",items:[{product:INIT_PRODUCTS[2],qty:1},{product:INIT_PRODUCTS[4],qty:2}],status:"nouvelle",subtotal:5100,deliveryFee:500,total:5600,paymentMethod:"orange_money",delivery:{nom:"Aristide Koyakouno",quartier:"Fatima",adresse:"Rue Docteur Lenoir",repere:"Maison bleue, carrefour",telephone:"+236 75 98 76 54"},createdAt:ago(5)},
-  {id:"CMD-004",storeId:"s1",storeName:"Maman Cécile",storeType:"restaurant",clientId:"u1",clientName:"Jean-Baptiste Maïna",items:[{product:INIT_PRODUCTS[1],qty:1},{product:INIT_PRODUCTS[3],qty:1}],status:"prête",subtotal:3200,deliveryFee:500,total:3700,paymentMethod:"airtel_money",delivery:{nom:"Jean-Baptiste Maïna",quartier:"Castor",adresse:"Avenue Boganda",repere:"Immeuble La Paix, 2e étage",telephone:"+236 72 01 23 45"},createdAt:ago(45)},
-];
-const SEED_NOTIFS:Notif[] = [
-  {id:"n1",userId:"u1",title:"Commande livrée ✓",body:"Votre commande CMD-001 a été livrée avec succès !",read:true,createdAt:ago(2*24*60),orderId:"CMD-001"},
-  {id:"n2",userId:"u1",title:"En préparation",body:"Chez Aristide prépare votre commande CMD-002.",read:false,createdAt:ago(20),orderId:"CMD-002"},
-  {id:"n3",userId:"u2",title:"Nouvelle commande !",body:"Commande CMD-003 reçue de Aristide Koyakouno.",read:false,createdAt:ago(5),orderId:"CMD-003"},
-];
+/* ══════════════════════════ DATA LAYER (API) ══════════════════════════════ */
+const StoresCtx=createContext<Store[]>([]);
+const UsersCtx=createContext<AppUser[]>([]);
+const toDate=(v:any):Date=>{const t=String(v||"");return new Date(t.includes("T")?t:t.replace(" ","T")+"Z");};
+const toAppUser=(u:any):AppUser=>({id:u.id,name:u.name,email:u.email,role:u.role,storeId:u.storeId??u.store_id??undefined,telephone:u.telephone??undefined,avatar:u.avatar??undefined,accountType:u.accountType??u.account_type??undefined});
+function mapOrder(o:any,prods:Product[]):Order{
+  return {...o,createdAt:toDate(o.createdAt),
+    items:(o.items||[]).map((it:any)=>({product:prods.find(p=>p.id===it.productId)||{id:it.productId,storeId:o.storeId,name:it.name,price:it.price,description:"",image:"",available:true,category:"",stock:0},qty:it.qty}))};
+}
+const fileToDataUrl=(f:File,max=640):Promise<string>=>new Promise((res,rej)=>{
+  const img=new Image();const url=URL.createObjectURL(f);
+  img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+    c.getContext("2d")!.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",0.72));};
+  img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Image illisible"));};img.src=url;
+});
+const INPUT_CLS="w-full bg-muted rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all";
+function Field({label,children}:{label:string;children:React.ReactNode}){
+  return(<div><label className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 block">{label}</label>{children}</div>);
+}
+
+function WaitScreen({error,onRetry}:{error:boolean;onRetry:()=>void}){
+  return(
+    <div className="fixed inset-0 bg-primary flex flex-col items-center justify-center gap-4 px-8 text-center text-white">
+      {error?(
+        <>
+          <AlertCircle size={40}/>
+          <p className="font-bold">Impossible de joindre le serveur</p>
+          <p className="text-white/70 text-sm">Vérifiez votre connexion Internet puis réessayez.</p>
+          <button onClick={onRetry} className="bg-white text-primary font-bold px-6 py-3 rounded-2xl">Réessayer</button>
+        </>
+      ):(
+        <>
+          <div className="w-10 h-10 border-white border-t-transparent rounded-full animate-spin" style={{borderWidth:"3px"}}/>
+          <p className="font-bold">Connexion au serveur…</p>
+          <p className="text-white/70 text-sm">Le premier démarrage peut prendre quelques secondes.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SetupScreen({requiresCode,onDone}:{requiresCode:boolean;onDone:(u:AppUser)=>void}){
+  const [code,setCode]=useState("");const [name,setName]=useState("");const [email,setEmail]=useState("");
+  const [pwd,setPwd]=useState("");const [pwd2,setPwd2]=useState("");
+  const [err,setErr]=useState("");const [loading,setLoading]=useState(false);
+  const submit=async()=>{
+    if(!name.trim()||!email.trim()||!pwd||(requiresCode&&!code.trim())){setErr("Merci de remplir tous les champs.");return;}
+    if(pwd!==pwd2){setErr("Les deux mots de passe ne correspondent pas.");return;}
+    setErr("");setLoading(true);
+    try{
+      const {token,user}=await AuthAPI.setupAdmin({setupCode:code.trim(),name:name.trim(),email:email.trim(),password:pwd});
+      setAuthToken(token);
+      onDone(toAppUser(user));
+    }catch(e:any){setErr(e?.message||"Erreur lors de la création du compte.");setLoading(false);}
+  };
+  return(
+    <div className="h-full flex flex-col bg-background">
+      <div className="bg-primary text-white px-6 pt-12 pb-8">
+        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-4"><Shield size={26} className="text-primary"/></div>
+        <h1 className="text-2xl font-black" style={{fontFamily:DF}}>Bienvenue 👋</h1>
+        <p className="text-white/80 text-sm mt-1">Créez le compte administrateur pour démarrer l'application.</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
+        {requiresCode&&(<Field label="Code d'installation"><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code reçu du déploiement" autoCapitalize="off" className={INPUT_CLS}/></Field>)}
+        <Field label="Nom complet"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Votre nom" className={INPUT_CLS}/></Field>
+        <Field label="Email"><input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="admin@email.com" className={INPUT_CLS}/></Field>
+        <Field label="Mot de passe"><input value={pwd} onChange={e=>setPwd(e.target.value)} type="password" placeholder="8+ car., majuscule, chiffre, symbole" className={INPUT_CLS}/></Field>
+        <Field label="Confirmer le mot de passe"><input value={pwd2} onChange={e=>setPwd2(e.target.value)} type="password" placeholder="••••••••" className={INPUT_CLS}/></Field>
+        {err&&<p className="text-sm text-red-600 font-semibold">{err}</p>}
+        <button onClick={submit} disabled={loading} className={`w-full py-4 rounded-2xl font-bold text-sm shadow-lg ${loading?"bg-primary/60 text-white":"bg-primary text-white active:scale-[0.97]"}`}>{loading?"Création…":"Créer le compte administrateur"}</button>
+        <p className="text-xs text-muted-foreground text-center pt-1">Cet écran n'apparaît qu'une seule fois, tant qu'aucun administrateur n'existe.</p>
+      </div>
+    </div>
+  );
+}
+
+function CreateStoreScreen({user,onCreated,onLogout}:{user:AppUser;onCreated:(store:Store,token:string)=>void;onLogout:()=>void}){
+  const [f,setF]=useState({name:"",type:"restaurant" as StoreType,category:"",quartier:QUARTIERS[0],address:"",openHours:"08h–20h",deliveryFee:"500",description:""});
+  const [err,setErr]=useState("");const [loading,setLoading]=useState(false);
+  const set=(k:string,v:string)=>setF(p=>({...p,[k]:v}));
+  const submit=async()=>{
+    if(!f.name.trim()||!f.category.trim()){setErr("Le nom et la catégorie sont obligatoires.");return;}
+    setErr("");setLoading(true);
+    try{
+      const {store,token}=await StoresAPI.create({name:f.name.trim(),type:f.type,category:f.category.trim(),quartier:f.quartier,address:f.address.trim(),openHours:f.openHours.trim(),deliveryFee:Number(f.deliveryFee)||500,description:f.description.trim()});
+      onCreated(store,token);
+    }catch(e:any){setErr(e?.message||"Impossible de créer la boutique.");setLoading(false);}
+  };
+  return(
+    <div className="h-full flex flex-col bg-background">
+      <div className="bg-primary text-white px-6 pt-12 pb-6">
+        <h1 className="text-2xl font-black" style={{fontFamily:DF}}>Créez votre boutique</h1>
+        <p className="text-white/80 text-sm mt-1">Bonjour {user.name.split(" ")[0]} ! Renseignez votre commerce pour recevoir des commandes.</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
+        <Field label="Nom du commerce"><input value={f.name} onChange={e=>set("name",e.target.value)} className={INPUT_CLS}/></Field>
+        <Field label="Type"><select value={f.type} onChange={e=>set("type",e.target.value)} className={INPUT_CLS}>
+          <option value="restaurant">Restaurant</option><option value="pharmacie">Pharmacie</option><option value="marche">Marché</option><option value="boutique">Boutique</option><option value="express">Express</option>
+        </select></Field>
+        <Field label="Catégorie"><input value={f.category} onChange={e=>set("category",e.target.value)} placeholder="Ex : Grillades, Mode…" className={INPUT_CLS}/></Field>
+        <Field label="Quartier"><select value={f.quartier} onChange={e=>set("quartier",e.target.value)} className={INPUT_CLS}>{QUARTIERS.map(q=><option key={q}>{q}</option>)}</select></Field>
+        <Field label="Adresse"><input value={f.address} onChange={e=>set("address",e.target.value)} className={INPUT_CLS}/></Field>
+        <Field label="Horaires"><input value={f.openHours} onChange={e=>set("openHours",e.target.value)} className={INPUT_CLS}/></Field>
+        <Field label="Frais de livraison (FCFA)"><input value={f.deliveryFee} onChange={e=>set("deliveryFee",e.target.value)} inputMode="numeric" className={INPUT_CLS}/></Field>
+        <Field label="Description"><textarea value={f.description} onChange={e=>set("description",e.target.value)} rows={3} className={INPUT_CLS}/></Field>
+        {err&&<p className="text-sm text-red-600 font-semibold">{err}</p>}
+        <button onClick={submit} disabled={loading} className={`w-full py-4 rounded-2xl font-bold text-sm shadow-lg ${loading?"bg-primary/60 text-white":"bg-primary text-white active:scale-[0.97]"}`}>{loading?"Création…":"Créer ma boutique"}</button>
+        <button onClick={onLogout} className="w-full text-sm text-muted-foreground py-2">Se déconnecter</button>
+      </div>
+    </div>
+  );
+}
 
 /* ════════════════════════ STORE CONFIG ═════════════════════════════════════ */
 const STORE_TYPE_CFG:Record<StoreType,{icon:React.ReactNode;color:string;label:string}> = {
@@ -126,8 +174,6 @@ const STORE_TYPE_CFG:Record<StoreType,{icon:React.ReactNode;color:string;label:s
 
 /* ════════════════════════════ SVG ICONS ════════════════════════════════════ */
 function GoogleIcon(){return(<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>);}
-function AppleIcon(){return(<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>);}
-function FacebookIcon(){return(<svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>);}
 
 /* ════════════════════════ SHARED COMPONENTS ════════════════════════════════ */
 function BDLogo({size="md",white=false}:{size?:"sm"|"md"|"lg";white?:boolean}){
@@ -479,8 +525,9 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
     }
   };
 
+  const googleClientId=(import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string|undefined;
   useEffect(()=>{
-    const clientId=(import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+    const clientId=googleClientId;
     if(!clientId) return;
     let interval:any;
     const init=()=>{
@@ -497,17 +544,6 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
     return ()=>clearInterval(interval);
   },[]);
 
-  const socialLogin=(provider:string)=>{
-    setErr("La connexion via "+provider+" n'est pas encore disponible. Utilisez votre email et mot de passe.");
-  };
-
-  const demoAccounts=[
-    {label:"👤 Client",     email:"client@test.com",  cls:"bg-blue-50 text-blue-700 border border-blue-200"},
-    {label:"🏪 Commerçant", email:"merchant@test.com", cls:"bg-amber-50 text-amber-700 border border-amber-200"},
-    {label:"🏍️ Livreur",   email:"driver@test.com",   cls:"bg-violet-50 text-violet-700 border border-violet-200"},
-    {label:"⚙️ Admin",      email:"admin@test.com",    cls:"bg-primary/10 text-primary border border-primary/20"},
-  ];
-
   return(
     <div className="flex flex-col h-full bg-card overflow-hidden">
       {/* Header */}
@@ -521,19 +557,11 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
 
       <div className="flex-1 overflow-y-auto px-5 py-5 scrollbar-hide">
         {/* Social login */}
-        <div className="space-y-2.5 mb-5">
-          <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]"/>
-          {[
-            {icon:<AppleIcon/>,    label:"Continuer avec Apple",    bg:"bg-black",                          text:"text-white"},
-            {icon:<FacebookIcon/>, label:"Continuer avec Facebook", bg:"bg-[#1877F2]",                      text:"text-white"},
-          ].map(s=>(
-            <button key={s.label} onClick={()=>socialLogin(s.label)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-semibold text-sm ${s.bg} ${s.text} shadow-sm active:scale-[0.97] transition-transform`}>
-              <span className="w-6 flex-shrink-0 flex items-center justify-center">{s.icon}</span>
-              <span className="flex-1 text-center">{s.label}</span>
-            </button>
-          ))}
-        </div>
+        {googleClientId&&(
+          <div className="space-y-2.5 mb-5">
+            <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]"/>
+          </div>
+        )}
 
         <div className="flex items-center gap-3 mb-5">
           <div className="flex-1 h-px bg-border"/>
@@ -572,19 +600,6 @@ function LoginScreen({onLogin,onBack,onRegister}:{onLogin:(u:AppUser)=>void;onBa
           className={`w-full py-4 rounded-2xl font-bold text-sm shadow-lg transition-all ${loading?"bg-primary/60 text-white":"bg-primary text-white active:scale-[0.97]"}`}>
           {loading?"Connexion en cours…":"Se connecter"}
         </button>
-
-        {/* Demo accounts */}
-        <div className="mt-5">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Comptes démo (mot de passe : password123)</p>
-          <div className="grid grid-cols-2 gap-2">
-            {demoAccounts.map(d=>(
-              <button key={d.email} onClick={()=>{setEmail(d.email);setPwd("password123");setErr("");}}
-                className={`${d.cls} rounded-xl py-2.5 text-xs font-bold text-center active:scale-95 transition-transform`}>
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <p className="text-center text-sm text-muted-foreground mt-5">
           Pas de compte ?{" "}
@@ -704,18 +719,11 @@ function RegisterScreen({accountType,onSubmit,onBack,initialError}:{accountType:
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3 scrollbar-hide">
-        {/* Social register */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {[
-            {icon:<GoogleIcon/>,   label:"Google", bg:"bg-white border border-gray-200 text-foreground"},
-            {icon:<AppleIcon/>,    label:"Apple",  bg:"bg-black text-white"},
-            {icon:<FacebookIcon/>, label:"Facebook",bg:"bg-[#1877F2] text-white"},
-          ].map(s=>(
-            <button key={s.label} className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl ${s.bg} text-xs font-semibold active:scale-95 transition-transform shadow-sm`}>
-              {s.icon}<span>{s.label}</span>
-            </button>
-          ))}
-        </div>
+        {accountType==="personal"&&(
+          <p className="text-xs text-muted-foreground bg-muted rounded-xl px-3 py-2.5 mb-1">
+            💡 Vous pouvez aussi créer un compte client en un clic avec Google depuis l'écran de connexion.
+          </p>
+        )}
 
         <div className="flex items-center gap-3 mb-1">
           <div className="flex-1 h-px bg-border"/>
@@ -1003,6 +1011,7 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
   allNotifs:Notif[];setAllNotifs:React.Dispatch<React.SetStateAction<Notif[]>>;
   allProducts:Product[];onLogout:()=>void;
 }){
+  const STORES=useContext(StoresCtx);
   const [view,setView]=useState<ClientView>("home");
   const [activeStore,setActiveStore]=useState<Store|null>(null);
   const [filterType,setFilterType]=useState<StoreType|null>(null);
@@ -1542,6 +1551,7 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
   allNotifs:Notif[];allProducts:Product[];setAllProducts:React.Dispatch<React.SetStateAction<Product[]>>;
   onLogout:()=>void;
 }){
+  const STORES=useContext(StoresCtx);
   const [view,setView]=useState<MerchantView>("dashboard");
   const [selectedOrder,setSelectedOrder]=useState<Order|null>(null);
   const [showNotif,setShowNotif]=useState(false);
@@ -1794,7 +1804,7 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
           {preview?<img src={preview} alt="aperçu" className="w-full h-full object-cover"/>:
             <><Camera size={32} className="text-muted-foreground"/><p className="text-muted-foreground text-sm font-bold">Ajouter une photo</p><p className="text-muted-foreground text-xs">JPG, PNG · Max 5 MB</p></>}
         </button>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)setPreview(URL.createObjectURL(f));}}/>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)fileToDataUrl(f).then(setPreview).catch(()=>{});}}/>
         <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
           {([["Nom du produit *","name","Gozo et Sauce Feuilles","text"],["Prix (FCFA) *","price","1500","number"],["Description","description","Courte description…","text"],["Catégorie","category","Plats principaux, Jus…","text"],["Stock initial","stock","20","number"]] as [string,string,string,string][]).map(([label,key,ph,type])=>(
             <div key={key}>
@@ -1870,6 +1880,7 @@ function DriverApp({user,allOrders,setAllOrders,allNotifs,onLogout}:{
   user:AppUser;allOrders:Order[];setAllOrders:React.Dispatch<React.SetStateAction<Order[]>>;
   allNotifs:Notif[];onLogout:()=>void;
 }){
+  const STORES=useContext(StoresCtx);
   const [view,setView]=useState<DriverView>("d_available");
   const [isOnline,setIsOnline]=useState(true);
   const [showNotif,setShowNotif]=useState(false);
@@ -2083,6 +2094,7 @@ function DriverApp({user,allOrders,setAllOrders,allNotifs,onLogout}:{
 function AdminApp({user,allOrders,allNotifs,allProducts,onLogout}:{
   user:AppUser;allOrders:Order[];allNotifs:Notif[];allProducts:Product[];onLogout:()=>void;
 }){
+  const STORES=useContext(StoresCtx);const USERS=useContext(UsersCtx);
   const [view,setView]=useState<AdminView>("a_stats");
   const storeData=STORES.map(s=>({name:s.name.split(" ").slice(0,2).join(" "),cmd:allOrders.filter(o=>o.storeId===s.id).length}));
   const navItems:[AdminView,React.ReactNode,string][]=[
@@ -2259,47 +2271,166 @@ export default function App(){
   const [phase,setPhase]=useState<Phase>("splash");
   const [user,setUser]=useState<AppUser|null>(null);
   const [accountType,setAccountType]=useState<AccountType>("personal");
-  const [regPhone,setRegPhone]=useState("+236 ");
-  const [regName,setRegName]=useState("");
-  const [regEmail,setRegEmail]=useState("");
-  const [regPwd,setRegPwd]=useState("");
   const [regError,setRegError]=useState("");
-  const [orders,setOrders]=useState<Order[]>(SEED_ORDERS);
-  const [notifs,setNotifs]=useState<Notif[]>(SEED_NOTIFS);
-  const [products,setProducts]=useState<Product[]>(INIT_PRODUCTS);
+  const [orders,setOrders]=useState<Order[]>([]);
+  const [notifs,setNotifs]=useState<Notif[]>([]);
+  const [products,setProducts]=useState<Product[]>([]);
+  const [stores,setStores]=useState<Store[]>([]);
+  const [users,setUsers]=useState<AppUser[]>([]);
+  const [boot,setBoot]=useState<{user?:AppUser;needsSetup:boolean;requiresCode:boolean}|null>(null);
+  const [bootErr,setBootErr]=useState(false);
+  const [syncErr,setSyncErr]=useState("");
+  const ordersRef=useRef<Order[]>([]);const productsRef=useRef<Product[]>([]);const notifsRef=useRef<Notif[]>([]);
+  const serverNotifIds=useRef<Set<string>>(new Set());
+  ordersRef.current=orders;productsRef.current=products;notifsRef.current=notifs;
 
-  const login=(u:AppUser)=>{setUser(u);setPhase("app");};
-  const logout=()=>{setAuthToken(null);setUser(null);setPhase("auth_choice");};
+  /* ── Démarrage : état d'installation + restauration de session ── */
+  const runBoot=async()=>{
+    setBootErr(false);setBoot(null);
+    try{
+      const st=await AuthAPI.setupStatus();
+      let u:AppUser|undefined;
+      if(getAuthToken()){
+        try{const r=await AuthAPI.me();u=toAppUser(r.user);}
+        catch(e:any){if(e instanceof TypeError)throw e;setAuthToken(null);}
+      }
+      setBoot({user:u,needsSetup:st.needsSetup,requiresCode:st.requiresCode});
+    }catch{setBootErr(true);}
+  };
+  useEffect(()=>{runBoot();},[]);
 
-  const handleOTPVerified=async()=>{
+  /* ── Chargement des données depuis l'API ── */
+  const loadAll=async(u:AppUser)=>{
+    try{
+      const [s,p,o,n]=await Promise.all([StoresAPI.list(),ProductsAPI.list(),OrdersAPI.list(),NotificationsAPI.list()]);
+      const prods:Product[]=p.products;
+      setStores(s.stores);setProducts(prods);productsRef.current=prods;
+      const mapped=o.orders.map((x:any)=>mapOrder(x,prods));
+      setOrders(mapped);ordersRef.current=mapped;
+      const notes=n.notifications.map((x:any)=>({...x,createdAt:toDate(x.createdAt)}));
+      setNotifs(notes);notifsRef.current=notes;
+      serverNotifIds.current=new Set(n.notifications.map((x:any)=>x.id));
+      if(u.role==="admin"){const r=await AdminAPI.users();setUsers(r.users.map(toAppUser));}
+      setSyncErr("");
+    }catch(e:any){setSyncErr(e?.message||"Connexion au serveur impossible.");}
+  };
+
+  const login=(u:AppUser)=>{setUser(u);setPhase("app");loadAll(u);};
+  const logout=()=>{setAuthToken(null);setUser(null);setOrders([]);setNotifs([]);setProducts([]);setStores([]);setUsers([]);setPhase("auth_choice");runBoot();};
+
+  useEffect(()=>{
+    if(phase!=="wait"||!boot)return;
+    if(boot.user)login(boot.user);
+    else if(boot.needsSetup)setPhase("setup");
+    else setPhase("onboarding");
+  },[phase,boot]);
+
+  useEffect(()=>{
+    if(phase!=="app"||!user)return;
+    const t=setInterval(()=>loadAll(user),15000);
+    return()=>clearInterval(t);
+  },[phase,user]);
+
+  /* ── Écritures : l'UI modifie son état local, on répercute les changements sur l'API ── */
+  const syncOrders=async(prev:Order[],next:Order[],u:AppUser)=>{
+    let failure="";
+    try{
+      const prevMap=new Map(prev.map(o=>[o.id,o]));
+      for(const o of next){
+        const old=prevMap.get(o.id);
+        if(!old){
+          if(u.role==="client"||u.role==="admin")await OrdersAPI.create({storeId:o.storeId,items:o.items.map(i=>({productId:i.product.id,qty:i.qty})),paymentMethod:o.paymentMethod,delivery:o.delivery,note:o.note});
+        }else{
+          if(u.role==="driver"&&!old.driverId&&o.driverId)await OrdersAPI.assign(o.id);
+          if(old.status!==o.status)await OrdersAPI.setStatus(o.id,o.status);
+        }
+      }
+    }catch(e:any){failure=e?.message||"Erreur de synchronisation.";}
+    await loadAll(u);
+    if(failure)setSyncErr(failure);
+  };
+  const setOrdersSynced:React.Dispatch<React.SetStateAction<Order[]>>=(upd)=>{
+    const prev=ordersRef.current;
+    const next=typeof upd==="function"?(upd as (p:Order[])=>Order[])(prev):upd;
+    ordersRef.current=next;setOrders(next);
+    if(user)syncOrders(prev,next,user);
+  };
+
+  const syncProducts=async(prev:Product[],next:Product[],u:AppUser)=>{
+    let failure="";
+    const body=(p:Product)=>({name:p.name,price:p.price,description:p.description,image:p.image,available:p.available,category:p.category,stock:p.stock,unit:p.unit});
+    try{
+      const prevMap=new Map(prev.map(p=>[p.id,p]));
+      for(const p of next){
+        const old=prevMap.get(p.id);
+        if(!old)await ProductsAPI.create({storeId:p.storeId,...body(p)});
+        else if(JSON.stringify(old)!==JSON.stringify(p))await ProductsAPI.update(p.id,body(p));
+      }
+      for(const old of prev)if(!next.some(p=>p.id===old.id))await ProductsAPI.remove(old.id);
+    }catch(e:any){failure=e?.message||"Erreur de synchronisation.";}
+    await loadAll(u);
+    if(failure)setSyncErr(failure);
+  };
+  const setProductsSynced:React.Dispatch<React.SetStateAction<Product[]>>=(upd)=>{
+    const prev=productsRef.current;
+    const next=typeof upd==="function"?(upd as (p:Product[])=>Product[])(prev):upd;
+    productsRef.current=next;setProducts(next);
+    if(user)syncProducts(prev,next,user);
+  };
+
+  const setNotifsSynced:React.Dispatch<React.SetStateAction<Notif[]>>=(upd)=>{
+    const prev=notifsRef.current;
+    const next=typeof upd==="function"?(upd as (p:Notif[])=>Notif[])(prev):upd;
+    notifsRef.current=next;setNotifs(next);
+    for(const n of next){
+      const old=prev.find(x=>x.id===n.id);
+      if(old&&!old.read&&n.read&&serverNotifIds.current.has(n.id))NotificationsAPI.markRead(n.id).catch(()=>{});
+    }
+  };
+
+  /* ── Inscription (la vérification SMS sera branchée avec un fournisseur SMS) ── */
+  const doRegister=async(d:{name:string;phone:string;email:string;pwd:string})=>{
     setRegError("");
     try{
-      const {token,user}=await AuthAPI.register({name:regName,email:regEmail,password:regPwd,telephone:regPhone,accountType});
+      const {token,user:nu}=await AuthAPI.register({name:d.name,email:d.email,password:d.pwd,telephone:d.phone,accountType});
       setAuthToken(token);
-      login({id:user.id,name:user.name,email:user.email,role:user.role,storeId:user.storeId,telephone:user.telephone,accountType:user.accountType});
+      login(toAppUser(nu));
     }catch(e:any){
       setRegError(e?.message||"Impossible de créer le compte. Réessayez.");
       setPhase("register");
     }
   };
 
+  const onStoreCreated=(store:Store,token:string)=>{
+    setAuthToken(token);
+    const u={...user!,storeId:store.id};
+    setUser(u);loadAll(u);
+  };
+
   return(
     <div className="flex items-center justify-center min-h-screen bg-zinc-800" style={{fontFamily:"'DM Sans',sans-serif"}}>
       <div className="relative w-full max-w-sm h-screen bg-background overflow-hidden shadow-2xl">
-        {phase==="splash"       && <SplashScreen onDone={()=>setPhase("onboarding")}/>}
+        <StoresCtx.Provider value={stores}><UsersCtx.Provider value={users}>
+        {phase==="splash"       && <SplashScreen onDone={()=>setPhase("wait")}/>}
+        {phase==="wait"         && !boot && <WaitScreen error={bootErr} onRetry={runBoot}/>}
+        {phase==="setup"        && boot && <SetupScreen requiresCode={boot.requiresCode} onDone={login}/>}
         {phase==="onboarding"   && <OnboardingScreen onDone={()=>setPhase("auth_choice")}/>}
         {phase==="auth_choice"  && <AuthChoiceScreen onLogin={()=>setPhase("login")} onRegister={()=>setPhase("account_type")}/>}
         {phase==="login"        && <LoginScreen onLogin={login} onBack={()=>setPhase("auth_choice")} onRegister={()=>setPhase("account_type")}/>}
         {phase==="account_type" && <AccountTypeScreen onSelect={t=>{setAccountType(t);setPhase("register");}} onBack={()=>setPhase("auth_choice")}/>}
-        {phase==="register"     && <RegisterScreen accountType={accountType} initialError={regError} onSubmit={(d)=>{setRegPhone(d.phone);setRegName(d.name);setRegEmail(d.email);setRegPwd(d.pwd);setPhase("otp");}} onBack={()=>setPhase("account_type")}/>}
-        {phase==="otp"          && <OTPScreen phone={regPhone} onVerify={handleOTPVerified} onBack={()=>setPhase("register")}/>}
+        {phase==="register"     && <RegisterScreen accountType={accountType} initialError={regError} onSubmit={doRegister} onBack={()=>setPhase("account_type")}/>}
         {phase==="app"&&user&&(
           <>
-            {user.role==="client"  &&<ClientApp user={user} allOrders={orders} setAllOrders={setOrders} allNotifs={notifs} setAllNotifs={setNotifs} allProducts={products} onLogout={logout}/>}
-            {user.role==="merchant"&&<MerchantApp user={user} allOrders={orders} setAllOrders={setOrders} allNotifs={notifs} allProducts={products} setAllProducts={setProducts} onLogout={logout}/>}
-            {user.role==="driver"  &&<DriverApp user={user} allOrders={orders} setAllOrders={setOrders} allNotifs={notifs} onLogout={logout}/>}
+            {user.role==="client"  &&<ClientApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} setAllNotifs={setNotifsSynced} allProducts={products} onLogout={logout}/>}
+            {user.role==="merchant"&&!user.storeId&&<CreateStoreScreen user={user} onCreated={onStoreCreated} onLogout={logout}/>}
+            {user.role==="merchant"&&!!user.storeId&&<MerchantApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} allProducts={products} setAllProducts={setProductsSynced} onLogout={logout}/>}
+            {user.role==="driver"  &&<DriverApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} onLogout={logout}/>}
             {user.role==="admin"   &&<AdminApp user={user} allOrders={orders} allNotifs={notifs} allProducts={products} onLogout={logout}/>}
           </>
+        )}
+        </UsersCtx.Provider></StoresCtx.Provider>
+        {syncErr&&phase==="app"&&(
+          <div onClick={()=>setSyncErr("")} className="absolute top-0 inset-x-0 z-50 bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center">{syncErr} · toucher pour fermer</div>
         )}
       </div>
     </div>

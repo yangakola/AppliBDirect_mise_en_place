@@ -15,10 +15,13 @@ initSchema();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGIN) {
+  throw new Error("CORS_ORIGIN est obligatoire en production (URL(s) du frontend, séparées par des virgules).");
+}
 const CORS_ORIGIN = (process.env.CORS_ORIGIN || "*").split(",").map((s) => s.trim());
 
 app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "build-delivery-backend" }));
 

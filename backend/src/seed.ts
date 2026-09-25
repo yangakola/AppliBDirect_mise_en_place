@@ -4,6 +4,11 @@
 import bcrypt from "bcryptjs";
 import { db, initSchema } from "./db";
 
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+  console.error("Seed refusé en production (il efface toutes les données). Définir ALLOW_SEED=true pour forcer.");
+  process.exit(0);
+}
+
 initSchema();
 
 const PASSWORD = "password123";

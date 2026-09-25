@@ -43,6 +43,9 @@ export const AuthAPI = {
     request<{ token: string; user: any }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => request<{ user: any }>("/auth/me"),
   google: (idToken: string) => request<{ token: string; user: any }>("/auth/google", { method: "POST", body: JSON.stringify({ idToken }) }),
+  setupStatus: () => request<{ needsSetup: boolean; requiresCode: boolean }>("/auth/setup-status"),
+  setupAdmin: (body: { setupCode?: string; name: string; email: string; password: string }) =>
+    request<{ token: string; user: any }>("/auth/setup-admin", { method: "POST", body: JSON.stringify(body) }),
   requestOtp: (telephone: string) =>
     request<{ message: string; devCode?: string }>("/auth/otp/request", { method: "POST", body: JSON.stringify({ telephone }) }),
   verifyOtp: (telephone: string, code: string) =>
@@ -56,7 +59,7 @@ export const StoresAPI = {
     return request<{ stores: any[] }>(`/stores${qs ? `?${qs}` : ""}`);
   },
   get: (id: string) => request<{ store: any }>(`/stores/${id}`),
-  create: (body: any) => request<{ store: any }>("/stores", { method: "POST", body: JSON.stringify(body) }),
+  create: (body: any) => request<{ store: any; token: string }>("/stores", { method: "POST", body: JSON.stringify(body) }),
   update: (id: string, body: any) => request<{ store: any }>(`/stores/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   toggleOpen: (id: string) => request<{ store: any }>(`/stores/${id}/toggle-open`, { method: "PATCH" }),
 };
