@@ -1,22 +1,14 @@
-# Mise à jour — installation admin + app branchée sur l'API + connexion sociale corrigée
+# Mise à jour — mise en page bureau complète
 
 ## Depuis la dernière mise à jour
-- Boutons Apple / Facebook retirés (ils ne faisaient rien : aucun fournisseur d'identité réel n'était branché,
-  et sur l'écran d'inscription ils n'avaient même pas d'action au clic).
-- Le bouton Google ne s'affiche que si `VITE_GOOGLE_CLIENT_ID` est configuré (sinon aucun espace vide résiduel).
-- Note ajoutée sur l'inscription "Compte Personnel" : possibilité de créer un compte client via Google
-  depuis l'écran de connexion (le backend crée automatiquement le compte au premier login Google).
-
-## Pour activer Google (facultatif)
-1. https://console.cloud.google.com/ → créer un projet → "Identifiants" → "Créer des identifiants" →
-   "ID client OAuth" → type "Application Web".
-2. Origines JavaScript autorisées : l'URL de votre site (ex. https://applibdirect-app.onrender.com).
-3. Copier le Client ID obtenu et le donner pour configuration : `GOOGLE_CLIENT_ID` (backend) et
-   `VITE_GOOGLE_CLIENT_ID` (site) sur Render — mêmes valeur des deux côtés.
-
-## Apple / Facebook
-Non implémentés : nécessitent un compte développeur Apple (99 $/an) et une app Meta validée,
-tous deux liés à votre identité. Recommandé de s'en passer pour une app Android/Google Play.
+- Sur ordinateur, l'app n'est plus un petit rectangle flottant : chaque profil (client, marchand,
+  livreur, admin) a maintenant une vraie mise en page bureau avec barre latérale de navigation.
+- Boutiques, produits, commerces et utilisateurs s'affichent en grille (2-3 colonnes) sur grand écran.
+- Les écrans de connexion, inscription, installation admin et création de boutique gardent une carte
+  centrée (comme la quasi-totalité des apps bureau sérieuses) mais avec un panneau de présentation
+  "Bangui Direct" à gauche sur grand écran, au lieu d'un rectangle isolé sur fond noir.
+- Le mobile est strictement inchangé (vérifié : aucune régression), toujours plein écran avec menu
+  du bas.
 
 ---
-(voir aussi les notes de la mise à jour précédente : installation admin, données réelles, etc.)
+(voir aussi les notes des mises à jour précédentes : installation admin, données réelles, Google, etc.)
