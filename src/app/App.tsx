@@ -970,6 +970,51 @@ function ProductRow({product,qty,onAdd,onRemove}:{product:Product;qty:number;onA
   );
 }
 
+function DesktopSidebar({brand,items,active,onSelect,onLogout,badges}:{
+  brand:{title:string;subtitle:string};
+  items:[string,React.ReactNode,string][];
+  active:string;
+  onSelect:(v:string)=>void;
+  onLogout:()=>void;
+  badges?:Record<string,number>;
+}){
+  return(
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 lg:h-screen lg:sticky lg:top-0 bg-card border-r border-border">
+      <div className="px-5 py-6 border-b border-border flex items-center gap-2.5">
+        <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
+          <span className="text-white font-black text-sm" style={{fontFamily:DF}}>BD</span>
+        </div>
+        <div className="min-w-0">
+          <p className="font-black text-sm leading-tight truncate" style={{fontFamily:DF}}>{brand.title}</p>
+          <p className="text-xs text-muted-foreground truncate">{brand.subtitle}</p>
+        </div>
+      </div>
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {items.map(([v,icon,label])=>{
+          const isActive=active===v;
+          const badge=badges?.[v];
+          return(
+            <button key={v} onClick={()=>onSelect(v)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isActive?"bg-primary text-white":"text-foreground hover:bg-muted"}`}>
+              <span className="relative flex-shrink-0">
+                {icon}
+                {!!badge&&<span className="absolute -top-1.5 -right-2 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">{badge}</span>}
+              </span>
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+      <div className="px-3 py-4 border-t border-border">
+        <button onClick={onLogout}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors">
+          <LogOut size={17}/>Se déconnecter
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 function ClientNav({view,setView,cartCount,unread}:{view:ClientView;setView:(v:ClientView)=>void;cartCount:number;unread:number}){
   const items:[ClientView,React.ReactNode,string][]=[
     ["home",    <Home size={21}/>,         "Accueil"],
@@ -980,7 +1025,7 @@ function ClientNav({view,setView,cartCount,unread}:{view:ClientView;setView:(v:C
     ["profile", <User size={21}/>,         "Profil"],
   ];
   return(
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40 lg:hidden">
       <div className="flex items-stretch">
         {items.map(([v,icon,label])=>{
           const active=view===v;
@@ -1126,17 +1171,21 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
           <button onClick={()=>setView("search")} className="text-primary text-xs font-bold">Voir tout →</button>
         </div>
         <div className="space-y-4 pb-4">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           {STORES.filter(s=>s.isOpen).map(s=>(
             <StoreCard key={s.id} store={s} isFav={favorites.includes(s.id)} onFav={()=>toggleFav(s.id)}
               onClick={()=>{setActiveStore(s);setView("store");}}/>
           ))}
+          </div>
           {STORES.filter(s=>!s.isOpen).length>0&&(
             <div className="opacity-60">
               <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wide">Actuellement fermés</p>
+              <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
               {STORES.filter(s=>!s.isOpen).map(s=>(
                 <StoreCard key={s.id} store={s} isFav={favorites.includes(s.id)} onFav={()=>toggleFav(s.id)}
                   onClick={()=>{setActiveStore(s);setView("store");}}/>
               ))}
+              </div>
             </div>
           )}
         </div>
@@ -1172,10 +1221,12 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
       </div>
       <div className="space-y-4 pb-4">
         {filteredStores.length===0&&<div className="text-center py-16"><Search size={40} className="mx-auto text-muted-foreground/40 mb-3"/><p className="text-muted-foreground font-medium">Aucun résultat</p></div>}
+        <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
         {filteredStores.map(s=>(
           <StoreCard key={s.id} store={s} isFav={favorites.includes(s.id)} onFav={()=>toggleFav(s.id)}
             onClick={()=>{setActiveStore(s);setView("store");}}/>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -1213,9 +1264,11 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
           {cats2.map(cat=>(
             <div key={cat}>
               <h2 className="font-black text-base mb-1 pb-2 border-b border-border" style={{fontFamily:DF}}>{cat}</h2>
+              <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">
               {storeProducts.filter(p=>p.category===cat).map(p=>(
                 <ProductRow key={p.id} product={p} qty={getQty(p.id)} onAdd={()=>addToCart(p)} onRemove={()=>removeFromCart(p.id)}/>
               ))}
+              </div>
             </div>
           ))}
         </div>
@@ -1463,10 +1516,12 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
           </div>
         )}
         <div className="space-y-4 pb-4">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           {faves.map(s=>(
             <StoreCard key={s.id} store={s} isFav={true} onFav={()=>toggleFav(s.id)}
               onClick={()=>{setActiveStore(s);setView("store");}}/>
           ))}
+          </div>
         </div>
       </div>
     );
@@ -1526,9 +1581,20 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
     </div>
   );
 
+  const sidebarItems:[ClientView,React.ReactNode,string][]=[
+    ["home",<Home size={19}/>,"Accueil"],
+    ["search",<Search size={19}/>,"Rechercher"],
+    ["cart",<ShoppingCart size={19}/>,"Panier"],
+    ["orders",<ClipboardList size={19}/>,"Commandes"],
+    ["favorites",<Heart size={19}/>,"Favoris"],
+    ["profile",<User size={19}/>,"Profil"],
+  ];
+
   return(
-    <div className="relative h-full overflow-hidden">
-      <div className="h-full overflow-y-auto pb-20 scrollbar-hide">
+    <div className="relative h-full overflow-hidden lg:flex lg:h-screen lg:overflow-visible">
+      <DesktopSidebar brand={{title:"Bangui Direct",subtitle:"Espace client"}} items={sidebarItems} active={view} onSelect={(v)=>setView(v as ClientView)} onLogout={onLogout} badges={{cart:cart.length,profile:unread}}/>
+      <div className="h-full overflow-y-auto pb-20 scrollbar-hide lg:flex-1 lg:pb-0">
+        <div className="lg:max-w-6xl lg:mx-auto lg:px-8 lg:py-8">
         {view==="home"         && renderHome()}
         {view==="search"       && renderSearch()}
         {view==="store"        && renderStore()}
@@ -1539,6 +1605,7 @@ function ClientApp({user,allOrders,setAllOrders,allNotifs,setAllNotifs,allProduc
         {view==="favorites"    && renderFavorites()}
         {view==="profile"      && renderProfile()}
       </div>
+        </div>
       <ClientNav view={view} setView={setView} cartCount={cart.length} unread={unread}/>
       {showNotif&&<NotifPanel notifs={allNotifs} userId={user.id} onClose={()=>setShowNotif(false)} onRead={readNotif}/>}
     </div>
@@ -1619,7 +1686,7 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
           <button onClick={()=>{setMTab("nouvelle");setView("m_orders");}} className="bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl">Voir</button>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           {label:"Commandes aujourd'hui",val:String(todayOrders.length),icon:<ClipboardList size={20}/>,color:"text-blue-600",bg:"bg-blue-50"},
           {label:"Revenus du jour",val:FMT(todayRev),icon:<DollarSign size={20}/>,color:"text-emerald-600",bg:"bg-emerald-50"},
@@ -1759,6 +1826,7 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
         <h1 className="font-black text-xl" style={{fontFamily:DF}}>Mes produits</h1>
         <button onClick={()=>setView("add_product")} className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm"><Plus size={14}/>Ajouter</button>
       </div>
+      <div className="lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:space-y-0">
       {storeProds.map(p=>(
         <div key={p.id} className="bg-card border border-border rounded-2xl p-4 flex gap-3">
           <img src={p.image} alt={p.name} className="w-16 h-16 rounded-xl object-cover bg-muted flex-shrink-0"/>
@@ -1783,6 +1851,7 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 
@@ -1847,8 +1916,10 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
   );
 
   return(
-    <div className="relative h-full overflow-hidden">
-      <div className="h-full overflow-y-auto pb-20 scrollbar-hide">
+    <div className="relative h-full overflow-hidden lg:flex lg:h-screen lg:overflow-visible">
+      <DesktopSidebar brand={{title:"Bangui Direct",subtitle:"Espace commerçant"}} items={items} active={view} onSelect={(v)=>setView(v as MerchantView)} onLogout={onLogout} badges={{m_orders:pending}}/>
+      <div className="h-full overflow-y-auto pb-20 scrollbar-hide lg:flex-1 lg:pb-0">
+        <div className="lg:max-w-6xl lg:mx-auto lg:px-8 lg:py-8">
         {view==="dashboard"      && renderDash()}
         {view==="m_orders"       && renderOrders()}
         {view==="m_order_detail" && renderOrderDetail()}
@@ -1856,7 +1927,8 @@ function MerchantApp({user,allOrders,setAllOrders,allNotifs,allProducts,setAllPr
         {view==="add_product"    && renderAddProduct()}
         {view==="m_profile"      && renderProfile()}
       </div>
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40">
+        </div>
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40 lg:hidden">
         <div className="flex items-stretch">
           {items.map(([v,icon,label])=>{
             const active=view===v;
@@ -1925,6 +1997,7 @@ function DriverApp({user,allOrders,setAllOrders,allNotifs,onLogout}:{
       </button>
       {!isOnline&&<div className="text-center py-14"><Bike size={48} className="mx-auto text-muted-foreground/40 mb-3"/><p className="font-bold text-base">Vous êtes hors ligne</p><p className="text-muted-foreground text-sm mt-1">Passez en ligne pour voir les courses</p></div>}
       {isOnline&&available.length===0&&<div className="text-center py-14"><Package size={48} className="mx-auto text-muted-foreground/40 mb-3"/><p className="font-bold text-base">Aucune course disponible</p><p className="text-muted-foreground text-sm mt-1">Vous serez notifié dès qu'une commande est prête</p></div>}
+      <div className="lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4">
       {isOnline&&available.map(o=>{
         const s=STORES.find(st=>st.id===o.storeId);
         return(
@@ -1952,6 +2025,7 @@ function DriverApp({user,allOrders,setAllOrders,allNotifs,onLogout}:{
           </div>
         );
       })}
+      </div>
     </div>
   );
 
@@ -2065,14 +2139,17 @@ function DriverApp({user,allOrders,setAllOrders,allNotifs,onLogout}:{
   );
 
   return(
-    <div className="relative h-full overflow-hidden">
-      <div className="h-full overflow-y-auto pb-20 scrollbar-hide">
+    <div className="relative h-full overflow-hidden lg:flex lg:h-screen lg:overflow-visible">
+      <DesktopSidebar brand={{title:"Bangui Direct",subtitle:"Espace livreur"}} items={navItems} active={view} onSelect={(v)=>setView(v as DriverView)} onLogout={onLogout}/>
+      <div className="h-full overflow-y-auto pb-20 scrollbar-hide lg:flex-1 lg:pb-0">
+        <div className="lg:max-w-6xl lg:mx-auto lg:px-8 lg:py-8">
         {view==="d_available"&&renderAvailable()}
         {view==="d_course"&&renderCourse()}
         {view==="d_history"&&renderHistory()}
         {view==="d_earnings"&&renderEarnings()}
       </div>
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40">
+        </div>
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40 lg:hidden">
         <div className="flex items-stretch">
           {navItems.map(([v,icon,label])=>{
             const active=view===v;
@@ -2172,8 +2249,8 @@ function AdminApp({user,allOrders,allNotifs,allProducts,onLogout}:{
   );
 
   const renderShops=()=>(
-    <div className="px-4 pt-4 pb-4 space-y-3">
-      <h1 className="font-black text-xl" style={{fontFamily:DF}}>Commerces ({STORES.length})</h1>
+    <div className="px-4 pt-4 pb-4 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-4 lg:items-start">
+      <h1 className="font-black text-xl lg:col-span-full" style={{fontFamily:DF}}>Commerces ({STORES.length})</h1>
       {STORES.map(s=>{
         const tc=STORE_TYPE_CFG[s.type];const cnt=allOrders.filter(o=>o.storeId===s.id).length;
         return(
@@ -2197,8 +2274,8 @@ function AdminApp({user,allOrders,allNotifs,allProducts,onLogout}:{
   );
 
   const renderClients=()=>(
-    <div className="px-4 pt-4 pb-4 space-y-3">
-      <h1 className="font-black text-xl" style={{fontFamily:DF}}>Utilisateurs ({USERS.length})</h1>
+    <div className="px-4 pt-4 pb-4 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start">
+      <h1 className="font-black text-xl lg:col-span-full" style={{fontFamily:DF}}>Utilisateurs ({USERS.length})</h1>
       {USERS.map(u=>{
         const roleConfig={client:{icon:<User size={20}/>,color:"text-blue-600",bg:"bg-blue-50",label:"Client"},merchant:{icon:<Store size={20}/>,color:"text-amber-600",bg:"bg-amber-50",label:"Commerçant"},driver:{icon:<Bike size={20}/>,color:"text-violet-600",bg:"bg-violet-50",label:"Livreur"},admin:{icon:<Shield size={20}/>,color:"text-primary",bg:"bg-secondary",label:"Admin"}};
         const rc=roleConfig[u.role];
@@ -2214,8 +2291,8 @@ function AdminApp({user,allOrders,allNotifs,allProducts,onLogout}:{
   );
 
   const renderDrivers=()=>(
-    <div className="px-4 pt-4 pb-4 space-y-3">
-      <h1 className="font-black text-xl" style={{fontFamily:DF}}>Livreurs</h1>
+    <div className="px-4 pt-4 pb-4 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start">
+      <h1 className="font-black text-xl lg:col-span-full" style={{fontFamily:DF}}>Livreurs</h1>
       {USERS.filter(u=>u.role==="driver").map(u=>{
         const done=allOrders.filter(o=>o.driverId===u.id&&o.status==="livrée").length;
         const active=allOrders.find(o=>o.driverId===u.id&&o.status==="livraison");
@@ -2241,15 +2318,18 @@ function AdminApp({user,allOrders,allNotifs,allProducts,onLogout}:{
   );
 
   return(
-    <div className="relative h-full overflow-hidden">
-      <div className="h-full overflow-y-auto pb-20 scrollbar-hide">
+    <div className="relative h-full overflow-hidden lg:flex lg:h-screen lg:overflow-visible">
+      <DesktopSidebar brand={{title:"Bangui Direct",subtitle:"Espace admin"}} items={navItems} active={view} onSelect={(v)=>setView(v as AdminView)} onLogout={onLogout}/>
+      <div className="h-full overflow-y-auto pb-20 scrollbar-hide lg:flex-1 lg:pb-0">
+        <div className="lg:max-w-6xl lg:mx-auto lg:px-8 lg:py-8">
         {view==="a_stats"  &&renderStats()}
         {view==="a_orders" &&renderOrders()}
         {view==="a_shops"  &&renderShops()}
         {view==="a_clients"&&renderClients()}
         {view==="a_drivers"&&renderDrivers()}
       </div>
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40">
+        </div>
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card/95 backdrop-blur border-t border-border shadow-2xl z-40 lg:hidden">
         <div className="flex items-stretch">
           {navItems.map(([v,icon,label])=>{
             const active=view===v;
@@ -2407,32 +2487,57 @@ export default function App(){
     setUser(u);loadAll(u);
   };
 
-  return(
-    <div className="flex items-center justify-center min-h-screen bg-zinc-800" style={{fontFamily:"'DM Sans',sans-serif"}}>
-      <div className="relative w-full max-w-sm h-screen bg-background overflow-hidden shadow-2xl">
-        <StoresCtx.Provider value={stores}><UsersCtx.Provider value={users}>
-        {phase==="splash"       && <SplashScreen onDone={()=>setPhase("wait")}/>}
-        {phase==="wait"         && !boot && <WaitScreen error={bootErr} onRetry={runBoot}/>}
-        {phase==="setup"        && boot && <SetupScreen requiresCode={boot.requiresCode} onDone={login}/>}
-        {phase==="onboarding"   && <OnboardingScreen onDone={()=>setPhase("auth_choice")}/>}
-        {phase==="auth_choice"  && <AuthChoiceScreen onLogin={()=>setPhase("login")} onRegister={()=>setPhase("account_type")}/>}
-        {phase==="login"        && <LoginScreen onLogin={login} onBack={()=>setPhase("auth_choice")} onRegister={()=>setPhase("account_type")}/>}
-        {phase==="account_type" && <AccountTypeScreen onSelect={t=>{setAccountType(t);setPhase("register");}} onBack={()=>setPhase("auth_choice")}/>}
-        {phase==="register"     && <RegisterScreen accountType={accountType} initialError={regError} onSubmit={doRegister} onBack={()=>setPhase("account_type")}/>}
-        {phase==="app"&&user&&(
-          <>
-            {user.role==="client"  &&<ClientApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} setAllNotifs={setNotifsSynced} allProducts={products} onLogout={logout}/>}
-            {user.role==="merchant"&&!user.storeId&&<CreateStoreScreen user={user} onCreated={onStoreCreated} onLogout={logout}/>}
-            {user.role==="merchant"&&!!user.storeId&&<MerchantApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} allProducts={products} setAllProducts={setProductsSynced} onLogout={logout}/>}
-            {user.role==="driver"  &&<DriverApp user={user} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} onLogout={logout}/>}
-            {user.role==="admin"   &&<AdminApp user={user} allOrders={orders} allNotifs={notifs} allProducts={products} onLogout={logout}/>}
-          </>
-        )}
-        </UsersCtx.Provider></StoresCtx.Provider>
-        {syncErr&&phase==="app"&&(
-          <div onClick={()=>setSyncErr("")} className="absolute top-0 inset-x-0 z-50 bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center">{syncErr} · toucher pour fermer</div>
-        )}
+  // écran "plein bureau" (barre latérale) dès qu'un profil complet est actif ;
+  // sinon (auth, installation, création de boutique) on garde une carte, avec un panneau de marque sur grand écran.
+  const isAppFull = phase==="app" && !!user && !(user.role==="merchant" && !user.storeId);
+
+  const BrandPanel = ()=>(
+    <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-emerald-900 text-white flex-col justify-between p-12 flex-shrink-0">
+      <div>
+        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mb-8">
+          <span className="text-primary font-black text-lg" style={{fontFamily:DF}}>BD</span>
+        </div>
+        <h1 className="text-4xl font-black leading-tight" style={{fontFamily:DF}}>Bangui Direct</h1>
+        <p className="text-white/80 text-lg mt-4 max-w-sm">Restaurants, pharmacies, marchés et boutiques de Bangui — livrés directement chez vous.</p>
+      </div>
+      <div className="space-y-3 text-white/70 text-sm">
+        <p>🚀 Livraison rapide dans tous les quartiers</p>
+        <p>💳 Orange Money, Airtel Money ou espèces</p>
+        <p>📍 Suivi de commande en temps réel</p>
       </div>
     </div>
+  );
+
+  return(
+    <StoresCtx.Provider value={stores}><UsersCtx.Provider value={users}>
+    <div className={`min-h-screen w-full flex items-center justify-center ${isAppFull?"":"bg-zinc-800 lg:bg-gradient-to-br lg:from-emerald-950 lg:via-primary/60 lg:to-emerald-900 lg:p-8"}`} style={{fontFamily:"'DM Sans',sans-serif"}}>
+      {isAppFull ? (
+        <div className="relative bg-background overflow-hidden w-full h-screen">
+          {user!.role==="client"  &&<ClientApp user={user!} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} setAllNotifs={setNotifsSynced} allProducts={products} onLogout={logout}/>}
+          {user!.role==="merchant"&&<MerchantApp user={user!} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} allProducts={products} setAllProducts={setProductsSynced} onLogout={logout}/>}
+          {user!.role==="driver"  &&<DriverApp user={user!} allOrders={orders} setAllOrders={setOrdersSynced} allNotifs={notifs} onLogout={logout}/>}
+          {user!.role==="admin"   &&<AdminApp user={user!} allOrders={orders} allNotifs={notifs} allProducts={products} onLogout={logout}/>}
+          {syncErr&&(
+            <div onClick={()=>setSyncErr("")} className="absolute top-0 inset-x-0 z-50 bg-red-600 text-white text-xs font-semibold px-4 py-2 text-center">{syncErr} · toucher pour fermer</div>
+          )}
+        </div>
+      ):(
+        <div className="w-full h-screen lg:h-auto lg:max-w-4xl lg:flex lg:rounded-[2rem] lg:overflow-hidden lg:shadow-2xl">
+          <BrandPanel/>
+          <div className="relative bg-background overflow-hidden w-full h-screen lg:h-[720px] lg:w-1/2 lg:flex-shrink-0">
+            {phase==="splash"       && <SplashScreen onDone={()=>setPhase("wait")}/>}
+            {phase==="wait"         && !boot && <WaitScreen error={bootErr} onRetry={runBoot}/>}
+            {phase==="setup"        && boot && <SetupScreen requiresCode={boot.requiresCode} onDone={login}/>}
+            {phase==="onboarding"   && <OnboardingScreen onDone={()=>setPhase("auth_choice")}/>}
+            {phase==="auth_choice"  && <AuthChoiceScreen onLogin={()=>setPhase("login")} onRegister={()=>setPhase("account_type")}/>}
+            {phase==="login"        && <LoginScreen onLogin={login} onBack={()=>setPhase("auth_choice")} onRegister={()=>setPhase("account_type")}/>}
+            {phase==="account_type" && <AccountTypeScreen onSelect={t=>{setAccountType(t);setPhase("register");}} onBack={()=>setPhase("auth_choice")}/>}
+            {phase==="register"     && <RegisterScreen accountType={accountType} initialError={regError} onSubmit={doRegister} onBack={()=>setPhase("account_type")}/>}
+            {phase==="app"&&user&&user.role==="merchant"&&!user.storeId&&<CreateStoreScreen user={user} onCreated={onStoreCreated} onLogout={logout}/>}
+          </div>
+        </div>
+      )}
+    </div>
+    </UsersCtx.Provider></StoresCtx.Provider>
   );
 }
